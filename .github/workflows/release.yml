@@ -1,0 +1,56 @@
+name: Release CI
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build dist folder
+        run: |
+          npm run build
+
+      - name: Commit dist for release
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f dist
+          git commit -m "Add dist folder for release"
+
+      - name: Push dist to release tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Push the commit only to the release tag
+          git push origin HEAD:refs/tags/${{ github.ref_name }}
+
+      - name: Create GitHub Release
+        uses: actions/create-release@latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+
+      - name: Revert dist commit
+        if: always()
+        run: |
+          git reset --hard HEAD~1
+          # Avoid force-pushing to the main branch directly
+          git push origin main --force
