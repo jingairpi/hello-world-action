@@ -1,8 +1,9 @@
 name: Release CI
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   build-and-release:
@@ -35,11 +36,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Push the commit only to the release tag
-          git push origin HEAD:refs/tags/${{ github.ref_name }}
+          # Force push to the tag to update it with the new commit
+          git push origin HEAD:refs/tags/${{ github.ref_name }} --force
 
       - name: Create GitHub Release
-        uses: actions/create-release@latest
+        uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -52,5 +53,4 @@ jobs:
         if: always()
         run: |
           git reset --hard HEAD~1
-          # Avoid force-pushing to the main branch directly
-          git push origin main --force
+          git push origin +HEAD:main
