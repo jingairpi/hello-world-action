@@ -1,0 +1,13 @@
+name: Test Action
+
+on: [push]
+
+jobs:
+  run-action:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run hello-world action
+        uses: jingairpi/hello-world-action@v1.3
