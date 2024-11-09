@@ -1,0 +1,17 @@
+name: Hello World JS Action!
+description: Greet someone and record the time
+author: Jing Ai
+
+inputs:
+  who-to-greet:
+    description: Who to greet
+    required: true
+    default: world
+
+outputs:
+  time:
+    description: The time we greeted you
+
+runs:
+  using: node20
+  main: index.js
