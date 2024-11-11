@@ -13,8 +13,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate release branch name
+        id: vars
+        shell: bash
+        run: |
+          DATE=$(date '+%m%d%y-%H%M%S')
+          echo "RELEASE_BRANCH=release-${DATE}" >> $GITHUB_ENV
+          echo "::set-output name=release_branch::release-${DATE}"
+
+      - name: Create and switch to release branch
+        env:
+          RELEASE_BRANCH: ${{ env.RELEASE_BRANCH }}
+        run: |
+          git checkout -b "${RELEASE_BRANCH}"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -22,27 +38,36 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Build dist folder
-        run: |
-          npm run build
+      - name: Build the action
+        run: npm run build
 
-      - name: Commit dist for release
+      - name: Commit changes
+        env:
+          RELEASE_BRANCH: ${{ env.RELEASE_BRANCH }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f dist
-          git commit -m "Add dist folder for release"
+          git add -f dist/ action.yml
+          git commit -m "Build for release ${GITHUB_REF_NAME}" || echo "No changes to commit"
 
-      - name: Push dist to tag
+      - name: Push changes to release branch
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_BRANCH: ${{ env.RELEASE_BRANCH }}
         run: |
           # Set up authentication
-          git remote set-url origin https://$GITHUB_ACTOR:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
-          # Push the commit only to the release tag
-          git push origin HEAD:refs/tags/${GITHUB_REF_NAME} --force
+          git remote set-url origin "https://$GITHUB_ACTOR:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin "${RELEASE_BRANCH}"
+
+      - name: Create or update tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_BRANCH: ${{ env.RELEASE_BRANCH }}
+        run: |
+          git tag -fa "${GITHUB_REF_NAME}" -m "Release ${GITHUB_REF_NAME}"
+          git push origin "${GITHUB_REF_NAME}" --force
 
       - name: Create GitHub Release
         uses: actions/create-release@v1
@@ -53,14 +78,4 @@ jobs:
           release_name: ${{ github.ref_name }}
           draft: false
           prerelease: false
-
-      - name: Revert dist commit
-        if: always()
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git reset --hard HEAD~1
-          # Set up authentication
-          git remote set-url origin https://$GITHUB_ACTOR:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
-          # Force push to main to remove dist commit
-          git push origin +HEAD:main --force
+          fail_if_exists: false
