@@ -21,8 +21,8 @@ jobs:
       - name: Set release branch name
         id: set_release_branch
         run: |
-          DATE=$(date +"%Y-%m-%d")
-          echo "RELEASE_BRANCH=release-${DATE}" >> $GITHUB_ENV
+          TAG_NAME=$(date +"%m%d%y-%H%M")
+          echo "RELEASE_BRANCH=release-${TAG_NAME}" >> $GITHUB_ENV
 
       - name: Ensure release branch exists
         env:
@@ -76,7 +76,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git tag -fa ${GITHUB_REF_NAME} -m "Release ${GITHUB_REF_NAME}"
-          git push origin ${GITHUB_REF_NAME}
+          git push origin ${GITHUB_REF_NAME} --force
 
       - name: Create GitHub Release
         uses: actions/create-release@v1
