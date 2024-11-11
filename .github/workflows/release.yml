@@ -67,7 +67,7 @@ jobs:
           RELEASE_BRANCH: ${{ env.RELEASE_BRANCH }}
         run: |
           git tag -fa "${GITHUB_REF_NAME}" -m "Release ${GITHUB_REF_NAME}"
-          git push origin "${GITHUB_REF_NAME}" --force
+          git push origin "${GITHUB_REF_NAME}"
 
       - name: Create GitHub Release
         uses: actions/create-release@v1
