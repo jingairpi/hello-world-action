@@ -1,4 +1,7 @@
 name: Test Action
+permissions:
+  contents: read
+  pull-requests: write
 
 on: [push]
 
@@ -10,4 +13,4 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run hello-world action
-        uses: jingairpi/hello-world-action@v1.9
+        uses: jingairpi/hello-world-action
