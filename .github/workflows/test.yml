@@ -13,4 +13,4 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run hello-world action
-        uses: jingairpi/hello-world-action
+        uses: jingairpi/hello-world-action@501541b6785b5a86ad14d530790981245261e1db # v1.10
