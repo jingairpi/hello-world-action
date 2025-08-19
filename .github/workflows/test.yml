@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Run hello-world action
         uses: jingairpi/hello-world-action@501541b6785b5a86ad14d530790981245261e1db # v1.10
