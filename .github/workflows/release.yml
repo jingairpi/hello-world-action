@@ -1,85 +1,86 @@
 name: Release CI
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'New release tag, exactly vMAJOR.MINOR.PATCH (for example v1.12.0)'
+        required: true
+        type: string
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-publication
+  cancel-in-progress: false
 
 jobs:
-  build-and-release:
+  build:
+    if: github.repository == 'jingairpi/hello-world-action' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Set release branch name
-        id: set_release_branch
-        run: |
-          TAG_NAME=$(date +"%m%d%y-%H%M")
-          echo "RELEASE_BRANCH=release-${TAG_NAME}" >> $GITHUB_ENV
-
-      - name: Ensure release branch exists
+      - name: Validate version
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
         run: |
-          git fetch origin
-          if git show-ref --quiet refs/heads/${{ env.RELEASE_BRANCH }}; then
-            echo "Release branch exists"
-            git checkout ${{ env.RELEASE_BRANCH }}
-          else
-            echo "Creating release branch"
-            git checkout -b ${{ env.RELEASE_BRANCH }}
-            git push origin ${{ env.RELEASE_BRANCH }}
+          if ! [[ "$VERSION" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Version must be vMAJOR.MINOR.PATCH with no leading zeroes. Select a new unused version."
+            exit 1
           fi
 
-      - name: Merge main into release
-        run: |
-          git checkout ${{ env.RELEASE_BRANCH }}
-          git merge origin/main --no-edit
+      - name: Checkout the selected source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
-          node-version: 20
+          node-version: 24
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build the action
-        run: npm run build
-
-      - name: Commit changes
+      - name: Build and test the action
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f dist/ action.yml
-          git commit -m "Build for release ${GITHUB_REF_NAME}" || echo "No changes to commit"
+          npm ci
+          npm run build
+          npm test
 
-      - name: Push changes to release branch
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git remote set-url origin https://$GITHUB_ACTOR:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
-          git push origin ${{ env.RELEASE_BRANCH }}
-
-      - name: Create or update tag
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git tag -fa ${GITHUB_REF_NAME} -m "Release ${GITHUB_REF_NAME}"
-          git push origin ${GITHUB_REF_NAME} --force
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+      - name: Preserve the tested bundle
+        id: bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          files: |
-            dist/**
-            action.yml
+          name: release-bundle
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+    outputs:
+      artifact-id: ${{ steps.bundle.outputs.artifact-id }}
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Checkout the same source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Retrieve this run's tested bundle
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact-id }}
+          path: dist/
+          merge-multiple: true
+
+      - name: Publish a new tag and immutable release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: bash .github/scripts/publish-release.sh
