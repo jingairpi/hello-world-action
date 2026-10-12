@@ -1,7 +1,9 @@
 name: Dependabot auto review and merge
 
 on:
-  pull_request_target:
+  # Dependabot pull_request events support explicit token permissions;
+  # pull_request_target tokens are forced read-only for these bot-authored PRs.
+  pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
 
