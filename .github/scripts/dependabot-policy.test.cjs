@@ -65,6 +65,11 @@ for (const type of ['patch', 'minor']) test(`approves and atomically merges the 
   assert.equal(f.mutations[1][1].merge_method, 'squash');
 });
 
+test('accepts the documented workflow path with its API ref suffix', async () => {
+  const f = fixture(); f.run.path += '@refs/pull/12/merge';
+  assert.equal(await f.execute(), true);
+});
+
 const refusals = {
   'wrong event': f => { f.context.eventName = 'pull_request'; },
   'wrong repository': f => { f.context.repo.owner = 'elsewhere'; },

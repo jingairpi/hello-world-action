@@ -37,7 +37,7 @@ async function approveAndMerge({ github, context, core }) {
   // Read server state rather than trusting a stale event snapshot.
   const { data: run } = await github.rest.actions.getWorkflowRun({ ...repo, run_id: eventRun.id });
   const { data: workflow } = await github.rest.actions.getWorkflow({ ...repo, workflow_id: 'test.yml' });
-  if (run.workflow_id !== workflow.id || workflow.path !== WORKFLOW || run.path !== WORKFLOW ||
+  if (run.workflow_id !== workflow.id || workflow.path !== WORKFLOW || run.path?.split('@')[0] !== WORKFLOW ||
       run.event !== 'pull_request' || run.status !== 'completed' || run.conclusion !== 'success' ||
       run.run_attempt !== eventRun.run_attempt || run.head_repository?.full_name !== REPOSITORY ||
       !/^[a-f0-9]{40}$/.test(run.head_sha)) return skip('CI identity, result, attempt, or source does not match');
