@@ -25,7 +25,7 @@ Test the policy without contacting GitHub or mutating a PR:
 node --test .github/scripts/dependabot-policy.test.cjs
 ```
 
-The `main` branch requires the GitHub Actions `run-action` and `policy-tests` checks, with the branch
+The `main` branch requires the GitHub Actions `run-action` check, with the branch
 up to date before merging. That check installs dependencies,
 builds the proposed action, runs it, and verifies its time output. Repository
 GitHub Actions pull request approvals must remain enabled. The policy uses a
