@@ -4,7 +4,7 @@ const { test } = require('node:test');
 const { eligibleMetadata, approveAndMerge } = require('./dependabot-policy.cjs');
 const SHA = 'a'.repeat(40);
 const REPO = 'jingairpi/hello-world-action';
-const metadata = type => `---\nupdated-dependencies:\n- dependency-name: @actions/core\n  dependency-version: 3.0.2\n  dependency-type: direct:production\n  update-type: version-update:semver-${type}\n...\n`;
+const metadata = type => `---\nupdated-dependencies:\n- dependency-name: "@actions/core"\n  dependency-version: 3.0.2\n  dependency-type: direct:production\n  update-type: version-update:semver-${type}\n...\n`;
 
 function fixture() {
   const run = { id: 42, workflow_id: 7, path: '.github/workflows/test.yml', event: 'pull_request',
@@ -43,6 +43,8 @@ function fixture() {
 test('metadata allows all-minor/patch groups and refuses unknown or ambiguous classification', () => {
   assert.equal(eligibleMetadata(metadata('patch')), true);
   assert.equal(eligibleMetadata(metadata('minor')), true);
+  assert.equal(eligibleMetadata(metadata('patch').replace('"@actions/core"', "'@actions/core'")), true);
+  assert.equal(eligibleMetadata(metadata('patch').replace('"@actions/core"', 'actions/checkout')), true);
   const second = '- dependency-name: another\n  dependency-version: 2.1.0\n  dependency-type: direct:development\n  update-type: version-update:semver-minor\n';
   assert.equal(eligibleMetadata(metadata('patch').replace('...\n', `${second}...\n`)), true);
   assert.equal(eligibleMetadata(metadata('patch').replace('...\n', `${second.replace('semver-minor', 'semver-major')}...\n`)), false);
@@ -52,7 +54,7 @@ test('metadata allows all-minor/patch groups and refuses unknown or ambiguous cl
     metadata('patch').replace('- dependency-name:', '- unknown-name:'),
     metadata('patch').replace('  dependency-version: 3.0.2\n', ''),
     metadata('patch').replace('  dependency-type: direct:production\n', ''),
-    metadata('patch').replace('@actions/core', '&alias'),
+    metadata('patch').replace('"@actions/core"', '&alias'),
     metadata('patch').replace('...\n', '')]) assert.equal(eligibleMetadata(message), false, message);
 });
 

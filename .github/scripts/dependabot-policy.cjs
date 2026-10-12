@@ -5,6 +5,14 @@ const WORKFLOW = '.github/workflows/test.yml';
 const BOT = 'dependabot[bot]';
 const TYPES = new Set(['version-update:semver-patch', 'version-update:semver-minor']);
 
+function scalar(value) {
+  try {
+    if (value.startsWith('"')) value = JSON.parse(value);
+    else if (/^'[^']*'$/.test(value)) value = value.slice(1, -1);
+    return typeof value === 'string' && /^[A-Za-z0-9_@./:+-]+$/.test(value) ? value : null;
+  } catch { return null; }
+}
+
 // Accept only the flat metadata emitted in signed Dependabot commits.
 // Unknown, ambiguous, major, or missing metadata needs manual review.
 function eligibleMetadata(message) {
@@ -13,15 +21,19 @@ function eligibleMetadata(message) {
   const dependencies = [];
   let dependency;
   for (const line of blocks[0][1].split('\n').slice(1)) {
-    const name = line.match(/^- dependency-name: ([@A-Za-z0-9_./-]+)$/);
+    const name = line.match(/^- dependency-name: (.+)$/);
     if (name) {
-      dependency = { name: name[1] };
+      const parsedName = scalar(name[1]);
+      if (!parsedName || !/^[@A-Za-z0-9_./-]+$/.test(parsedName)) return false;
+      dependency = { name: parsedName };
       dependencies.push(dependency);
       continue;
     }
-    const field = line.match(/^  (dependency-version|dependency-type|update-type): (\S+)$/);
+    const field = line.match(/^  (dependency-version|dependency-type|update-type): (.+)$/);
     if (!dependency || !field || Object.hasOwn(dependency, field[1])) return false;
-    dependency[field[1]] = field[2];
+    const value = scalar(field[2]);
+    if (!value) return false;
+    dependency[field[1]] = value;
   }
   return dependencies.length > 0 && dependencies.every(item =>
     item['dependency-version'] && item['dependency-type'] && TYPES.has(item['update-type']));
