@@ -1,9 +1,12 @@
 name: Test Action
 permissions:
   contents: read
-  pull-requests: write
 
-on: [push]
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
   run-action:
@@ -11,6 +14,27 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the proposed action
+        run: npm run build
 
       - name: Run hello-world action
-        uses: jingairpi/hello-world-action@05358dc1002895a3ffb4db44d44b16af444bb74f # v1.11
+        id: greeting
+        uses: ./
+        with:
+          who-to-greet: Dependabot CI
+
+      - name: Verify greeting output
+        env:
+          GREETING_TIME: ${{ steps.greeting.outputs.time }}
+        run: test -n "$GREETING_TIME"
