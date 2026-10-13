@@ -55,7 +55,7 @@ function assertSuccessfulGreeting(result, name) {
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.equal(result.stdout, `Hello ${name}!\n`);
   assert.equal(result.stderr, '');
-  const output = result.output.match(/^time<<([^\n]+)\n([^\n]+)\n\1\n$/);
+  const output = result.output.replace(/\r\n/g, '\n').match(/^time<<([^\n]+)\n([^\n]+)\n\1\n$/);
   assert.ok(output, `Expected one time output, received ${result.output}`);
   assertGreetingTime(output[2], result.startedAt, result.finishedAt);
 }
