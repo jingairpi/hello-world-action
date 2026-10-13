@@ -6,7 +6,6 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
 
 jobs:
   run-action:
@@ -21,6 +20,9 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: 20
+
+      - name: Test the trusted Dependabot policy
+        run: node --test .github/scripts/dependabot-policy.test.cjs
 
       - name: Install dependencies
         run: npm ci

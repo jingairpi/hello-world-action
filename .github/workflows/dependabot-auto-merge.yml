@@ -1,49 +1,33 @@
 name: Dependabot auto review and merge
-
 on:
-  pull_request_target:
-    branches: [main]
-    types: [opened, synchronize, reopened, ready_for_review]
-
+  workflow_run:
+    workflows: [Test Action]
+    types: [completed]
 permissions: {}
-
 concurrency:
-  group: dependabot-auto-merge-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
-
+  group: dependabot-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
 jobs:
   approve-and-merge:
     if: >-
       github.repository == 'jingairpi/hello-world-action' &&
-      github.actor == 'dependabot[bot]' &&
-      github.event.pull_request.user.login == 'dependabot[bot]' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      !github.event.pull_request.draft
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: write
       pull-requests: write
     steps:
-      # This privileged workflow never checks out or executes PR code.
-      - name: Verify Dependabot and fetch update metadata
-        id: metadata
-        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3
+      # The workflow and policy script come from this exact trusted main revision.
+      # Never fetch PR code or CI artifacts in this privileged job.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Approve patch and minor updates and enable auto-merge
-        if: >-
-          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
-          steps.metadata.outputs.update-type == 'version-update:semver-minor'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          gh api "repos/$GH_REPO/pulls/$PR_NUMBER/reviews" \
-            --method POST \
-            --field event=APPROVE \
-            --field commit_id="$PR_SHA" \
-            --field body='Verified Dependabot patch/minor update. Merge requires the protected CI check to pass.'
-          gh pr merge "$PR_NUMBER" --auto --squash --match-head-commit "$PR_SHA"
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - name: Verify successful CI and approve and merge its exact PR head
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const { approveAndMerge } = require('./.github/scripts/dependabot-policy.cjs');
+            await approveAndMerge({ github, context, core });
