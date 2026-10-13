@@ -23,8 +23,7 @@ chain security.
 
 The published `v1.12.0` release uses Node.js 24 and requires a runner that
 supports that action runtime. Pin a published release's full commit SHA for
-reproducibility. Historical releases through `v1.11` use Node.js 20 and predate
-the current publication process.
+reproducibility.
 `main` has no bundled runtime and is not a usable action reference. GitHub's
 release source archives include the tagged `action.yml` and `dist/` tree.
 
