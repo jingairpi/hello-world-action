@@ -1,9 +1,11 @@
 import * as core from '@actions/core';
-import * as github from '@actions/github';
 
 try {
   // Fetch the value of the input 'who-to-greet' specified in action.yml
   const nameToGreet = core.getInput('who-to-greet');
+  if (/[\r\n]/.test(nameToGreet)) {
+    throw new Error('who-to-greet must be a single line');
+  }
   console.log(`Hello ${nameToGreet}!`);
   
   // Record the time of greeting as an output
