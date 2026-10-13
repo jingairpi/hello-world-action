@@ -1,7 +1,7 @@
 'use strict';
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
-const { eligibleMetadata, approveAndMerge } = require('./dependabot-policy.cjs');
+const { eligibleMetadata, verifiedDependabotCommit, approveAndMerge } = require('./dependabot-policy.cjs');
 const SHA = 'a'.repeat(40);
 const REPO = 'jingairpi/hello-world-action';
 const metadata = type => `---\nupdated-dependencies:\n- dependency-name: "@actions/core"\n  dependency-version: 3.0.2\n  dependency-type: direct:production\n  update-type: version-update:semver-${type}\n...\n`;
@@ -9,6 +9,7 @@ const metadata = type => `---\nupdated-dependencies:\n- dependency-name: "@actio
 function fixture() {
   const run = { id: 42, workflow_id: 7, path: '.github/workflows/test.yml', event: 'pull_request',
     status: 'completed', conclusion: 'success', run_attempt: 1,
+    actor: { login: 'dependabot[bot]', id: 49699333 },
     head_repository: { full_name: REPO }, head_sha: SHA, pull_requests: [{ number: 12 }] };
   const workflow = { id: 7, path: run.path };
   const jobs = [{ name: 'run-action', conclusion: 'success' }];
@@ -16,7 +17,9 @@ function fixture() {
     base: { ref: 'main', repo: { full_name: REPO } },
     head: { repo: { full_name: REPO }, sha: SHA, ref: 'dependabot/npm_and_yarn/actions-core-3.0.2' }, commits: 1 };
   const commit = { sha: SHA, author: { login: 'dependabot[bot]', id: 49699333 },
+    committer: { login: 'web-flow', id: 19864447 },
     commit: { author: { email: '49699333+dependabot[bot]@users.noreply.github.com' },
+      committer: { name: 'GitHub', email: 'noreply@github.com' },
       verification: { verified: true, reason: 'valid' }, message: metadata('patch') } };
   const context = { eventName: 'workflow_run', repo: { owner: 'jingairpi', repo: 'hello-world-action' },
     payload: { workflow_run: { id: 42, run_attempt: 1 } } };
@@ -39,6 +42,44 @@ function fixture() {
   state.execute = () => approveAndMerge({ github, context, core: { info() {} } });
   return state;
 }
+
+test('recognizes genuine GitHub commit provenance independently of metadata eligibility', async () => {
+  // Relevant fields projected from the GitHub REST response for
+  // jingairpi/hello-world-action@f1adb17c41d0d2f208f5850a55494e3cdd4afff7.
+  // This indirect security update has no update-type and must stay manual.
+  const commit = {
+    sha: 'f1adb17c41d0d2f208f5850a55494e3cdd4afff7',
+    author: { login: 'dependabot[bot]', id: 49699333 },
+    committer: { login: 'web-flow', id: 19864447 },
+    commit: {
+      author: { name: 'dependabot[bot]', email: '49699333+dependabot[bot]@users.noreply.github.com' },
+      committer: { name: 'GitHub', email: 'noreply@github.com' },
+      verification: { verified: true, reason: 'valid', verified_at: '2026-10-12T23:30:57Z' },
+      message: `build(deps): bump undici from 6.27.0 to 6.29.0
+
+Bumps [undici](https://github.com/nodejs/undici) from 6.27.0 to 6.29.0.
+- [Release notes](https://github.com/nodejs/undici/releases)
+- [Commits](https://github.com/nodejs/undici/compare/v6.27.0...v6.29.0)
+
+---
+updated-dependencies:
+- dependency-name: undici
+  dependency-version: 6.29.0
+  dependency-type: indirect
+...
+
+Signed-off-by: dependabot[bot] <support@github.com>`
+    }
+  };
+  assert.equal(verifiedDependabotCommit(commit), true);
+  assert.equal(eligibleMetadata(commit.commit.message), false);
+  const f = fixture();
+  f.commit = commit;
+  f.run.head_sha = commit.sha;
+  f.pr.head.sha = commit.sha;
+  assert.equal(await f.execute(), false);
+  assert.deepEqual(f.mutations, []);
+});
 
 test('metadata allows all-minor/patch groups and refuses unknown or ambiguous classification', () => {
   assert.equal(eligibleMetadata(metadata('patch')), true);
@@ -72,6 +113,13 @@ test('accepts the documented workflow path with its API ref suffix', async () =>
   assert.equal(await f.execute(), true);
 });
 
+test('allows a maintainer rerun of CI originally initiated by Dependabot', async () => {
+  const f = fixture();
+  f.run.run_attempt = f.context.payload.workflow_run.run_attempt = 2;
+  f.run.triggering_actor = { login: 'jingairpi', id: 123 };
+  assert.equal(await f.execute(), true);
+});
+
 const refusals = {
   'wrong event': f => { f.context.eventName = 'pull_request'; },
   'wrong repository': f => { f.context.repo.owner = 'elsewhere'; },
@@ -79,6 +127,9 @@ const refusals = {
   'wrong workflow path': f => { f.workflow.path = '.github/workflows/other.yml'; },
   'wrong run path': f => { f.run.path = '.github/workflows/other.yml'; },
   'push CI': f => { f.run.event = 'push'; },
+  'human-initiated CI': f => { f.run.actor = { login: 'jingairpi', id: 123 }; },
+  'missing CI initiator': f => { delete f.run.actor; },
+  'wrong CI initiator ID': f => { f.run.actor.id = 123; },
   'failed CI': f => { f.run.conclusion = 'failure'; },
   'unfinished CI': f => { f.run.status = 'in_progress'; },
   'stale attempt': f => { f.run.run_attempt = 2; },
@@ -102,6 +153,19 @@ const refusals = {
   'human commit': f => { f.commit.author.login = 'jingairpi'; },
   'wrong author ID': f => { f.commit.author.id = 123; },
   'wrong signed email': f => { f.commit.commit.author.email = 'other@example.com'; },
+  'author-preserving human-signed amendment': f => {
+    f.commit.committer = { login: 'jingairpi', id: 123 };
+    f.commit.commit.committer = { name: 'Human editor', email: 'human@example.com' };
+    // A valid human signature, original bot author, and eligible metadata all
+    // remain intact. They are insufficient to authorize an automatic merge.
+  },
+  'missing associated committer': f => { delete f.commit.committer; },
+  'wrong committer login': f => { f.commit.committer.login = 'jingairpi'; },
+  'wrong committer ID': f => { f.commit.committer.id = 123; },
+  'missing raw committer': f => { delete f.commit.commit.committer; },
+  'wrong raw committer name': f => { f.commit.commit.committer.name = 'Human editor'; },
+  'wrong raw committer email': f => { f.commit.commit.committer.email = 'human@example.com'; },
+  'unverified signature with a truthy nonboolean value': f => { f.commit.commit.verification.verified = 'true'; },
   'unverified commit': f => { f.commit.commit.verification.verified = false; },
   'invalid signature reason': f => { f.commit.commit.verification.reason = 'unsigned'; },
   'major update': f => { f.commit.commit.message = metadata('major'); },
