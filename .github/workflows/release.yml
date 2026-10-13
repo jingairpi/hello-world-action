@@ -40,7 +40,7 @@ jobs:
         with:
           node-version: 24
 
-      - name: Build and test the action
+      - name: Build and run all tests
         run: |
           npm ci
           npm run build
@@ -62,7 +62,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      actions: read
     steps:
       - name: Checkout the same source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
