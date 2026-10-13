@@ -56,7 +56,7 @@ with this workflow. This setting protects newly published releases; it does not
 retroactively qualify or lock the historical releases.
 
 Run **Release CI** using **Run workflow**, select **main**, and supply an unused
-tag in exactly `vMAJOR.MINOR.PATCH` form, such as `v1.12.1`. Leading zeroes,
+tag in exactly `vMAJOR.MINOR.PATCH` form. Leading zeroes,
 prerelease suffixes, and mutable major-version aliases are not supported. The
 workflow accepts no source override: it builds the exact `main` commit recorded
 when the workflow was dispatched, even if `main` advances while it runs.
