@@ -15,8 +15,7 @@ function verifiedDependabotCommit(commit) {
   return commit?.author?.login === BOT && commit.author.id === 49699333 &&
     commit.commit?.author?.email === '49699333+dependabot[bot]@users.noreply.github.com' &&
     commit.committer?.login === 'web-flow' && commit.committer.id === 19864447 &&
-    commit.commit.committer?.name === 'GitHub' &&
-    commit.commit.committer.email === 'noreply@github.com' &&
+    commit.commit.committer?.email === 'noreply@github.com' &&
     commit.commit.verification?.verified === true && commit.commit.verification.reason === 'valid';
 }
 

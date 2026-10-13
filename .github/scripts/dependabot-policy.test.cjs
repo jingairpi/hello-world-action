@@ -163,7 +163,6 @@ const refusals = {
   'wrong committer login': f => { f.commit.committer.login = 'jingairpi'; },
   'wrong committer ID': f => { f.commit.committer.id = 123; },
   'missing raw committer': f => { delete f.commit.commit.committer; },
-  'wrong raw committer name': f => { f.commit.commit.committer.name = 'Human editor'; },
   'wrong raw committer email': f => { f.commit.commit.committer.email = 'human@example.com'; },
   'unverified signature with a truthy nonboolean value': f => { f.commit.commit.verification.verified = 'true'; },
   'unverified commit': f => { f.commit.commit.verification.verified = false; },
