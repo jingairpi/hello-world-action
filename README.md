@@ -24,6 +24,7 @@ chain security.
 The published `v1.12.0` release uses Node.js 24 and requires a runner that
 supports that action runtime. Pin a published release's full commit SHA for
 reproducibility.
+
 `main` has no bundled runtime and is not a usable action reference. GitHub's
 release source archives include the tagged `action.yml` and `dist/` tree.
 
@@ -86,8 +87,9 @@ the publication job cannot retrieve it; rerun all jobs to rebuild and test the
 same source, provided no tag was pushed.
 
 If a run fails after the tag push, the complete action tree remains at that tag,
-and rerunning the workflow deliberately refuses to replace it. Inspect the failed run and
-verify the tag's source parent, bundled tree, and recorded build/test results.
+and rerunning the workflow deliberately refuses to replace it. Inspect the
+failed run and verify the tag's source parent, bundled tree, and recorded
+build/test results.
 Then explicitly finish creating or publishing the release for that existing
 tag in GitHub, with immutable releases enabled. If publication already succeeded
 and only the final verification failed, inspect the release's `immutable` field
@@ -102,15 +104,21 @@ re-enabling it. Check the workflow state in GitHub Actions before relying on it.
 
 When enabled, Dependabot automation runs its privileged review and merge logic
 from the default branch after successful CI.
+
 It validates the associated Dependabot PR and current head SHA through GitHub's
 API. The CI run's original actor must be the authenticated Dependabot account;
-a human may rerun that same bot-initiated run. The commit must identify
-Dependabot as author, GitHub's trusted `web-flow` account as committer, and have a GitHub-verified signature. Human-signed
+a human may rerun that same bot-initiated run.
+
+The commit must identify Dependabot as author, GitHub's trusted `web-flow`
+account as committer, and have a GitHub-verified signature. Human-signed
 amendments retaining the bot author are rejected. This checks the observed
 GitHub-generated commit provenance; author attribution alone does not prove
-which actor initiated a change. All signed metadata entries must identify patch
-or minor updates. Major, unrecognized, or multi-commit updates require manual
-review, including security updates whose metadata omits the update type.
+which actor initiated a change.
+
+All signed metadata entries must identify patch or minor updates. Major,
+unrecognized, or multi-commit updates require manual review, including security
+updates whose metadata omits the update type.
+
 It approves and merges only the validated SHA; it does not perform an AI code
 review or execute candidate code in its privileged job.
 

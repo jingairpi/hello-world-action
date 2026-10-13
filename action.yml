@@ -4,13 +4,13 @@ author: Jing Ai
 
 inputs:
   who-to-greet:
-    description: Who to greet
+    description: Trimmed single-line name to greet
     required: false
     default: world
 
 outputs:
   time:
-    description: The time we greeted you
+    description: Local greeting time including timezone offset
 
 runs:
   using: node24
