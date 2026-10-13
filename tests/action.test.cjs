@@ -19,6 +19,7 @@ function runAction(input = defaultInput, options = {}) {
     const event = join(directory, 'event.json');
     writeFileSync(output, '');
     writeFileSync(event, options.event ?? '{}');
+    const startedAt = Date.now();
     const result = spawnSync(process.execPath, [join(root, 'dist/index.js')], {
       encoding: 'utf8',
       env: {
@@ -29,10 +30,25 @@ function runAction(input = defaultInput, options = {}) {
         GITHUB_OUTPUT: options.invalidOutput ? join(directory, 'missing/output') : output
       }
     });
-    return { ...result, output: readFileSync(output, 'utf8') };
+    const finishedAt = Date.now();
+    return { ...result, startedAt, finishedAt, output: readFileSync(output, 'utf8') };
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+}
+
+function assertGreetingTime(time, startedAt, finishedAt) {
+  assert.match(time, /^(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d GMT\+0000 \(Coordinated Universal Time\)$/);
+  const secondsInDay = 86400;
+  const startSecond = Math.floor(startedAt / 1000);
+  const endSecond = Math.floor(finishedAt / 1000);
+  const [hours, minutes, seconds] = time.slice(0, 8).split(':').map(Number);
+  let greetingSecond = Math.floor(startSecond / secondsInDay) * secondsInDay
+    + hours * 3600 + minutes * 60 + seconds;
+  // The output has no date. A greeting after midnight belongs to the next day.
+  if (greetingSecond < startSecond) greetingSecond += secondsInDay;
+  assert.ok(greetingSecond >= startSecond && greetingSecond <= endSecond,
+    `Greeting time ${time} falls outside the action's execution interval`);
 }
 
 function assertSuccessfulGreeting(result, name) {
@@ -41,8 +57,18 @@ function assertSuccessfulGreeting(result, name) {
   assert.equal(result.stderr, '');
   const output = result.output.match(/^time<<([^\n]+)\n([^\n]+)\n\1\n$/);
   assert.ok(output, `Expected one time output, received ${result.output}`);
-  assert.match(output[2], /^(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d GMT\+0000 \(Coordinated Universal Time\)$/);
+  assertGreetingTime(output[2], result.startedAt, result.finishedAt);
 }
+
+test('time assertions reject stale values and handle UTC midnight rollover', () => {
+  const start = Date.parse('2026-10-12T23:59:59.950Z');
+  const end = Date.parse('2026-10-13T00:00:00.050Z');
+  const time = (clock) => `${clock} GMT+0000 (Coordinated Universal Time)`;
+  assertGreetingTime(time('23:59:59'), start, end);
+  assertGreetingTime(time('00:00:00'), start, end);
+  assert.throws(() => assertGreetingTime(time('12:00:00'), start, end), /execution interval/);
+  assert.throws(() => assertGreetingTime(time('00:00:01'), start, end), /execution interval/);
+});
 
 test('greets the supplied name and writes a valid time output', () => {
   assertSuccessfulGreeting(runAction('Alice'), 'Alice');

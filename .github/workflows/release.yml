@@ -40,7 +40,7 @@ jobs:
         with:
           node-version: 24
 
-      - name: Build and test the action
+      - name: Build and run all tests
         run: |
           npm ci
           npm run build
