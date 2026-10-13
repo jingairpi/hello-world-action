@@ -5,6 +5,20 @@ const WORKFLOW = '.github/workflows/test.yml';
 const BOT = 'dependabot[bot]';
 const TYPES = new Set(['version-update:semver-patch', 'version-update:semver-minor']);
 
+// A signed author field does not identify the signer: a human can amend a bot
+// commit while retaining its author. GitHub's REST `valid` signature result
+// checks the signing identity against the committer email. Require the exact
+// GitHub committer identity as well as the Dependabot author identity.
+// This relies on GitHub's verification record, not an independent attestation
+// of the actor that initiated the commit or a private Dependabot signing key.
+function verifiedDependabotCommit(commit) {
+  return commit?.author?.login === BOT && commit.author.id === 49699333 &&
+    commit.commit?.author?.email === '49699333+dependabot[bot]@users.noreply.github.com' &&
+    commit.committer?.login === 'web-flow' && commit.committer.id === 19864447 &&
+    commit.commit.committer?.email === 'noreply@github.com' &&
+    commit.commit.verification?.verified === true && commit.commit.verification.reason === 'valid';
+}
+
 function scalar(value) {
   try {
     if (value.startsWith('"')) value = JSON.parse(value);
@@ -52,6 +66,9 @@ async function approveAndMerge({ github, context, core }) {
   if (run.workflow_id !== workflow.id || workflow.path !== WORKFLOW || run.path?.split('@')[0] !== WORKFLOW ||
       run.event !== 'pull_request' || run.status !== 'completed' || run.conclusion !== 'success' ||
       run.run_attempt !== eventRun.run_attempt || run.head_repository?.full_name !== REPOSITORY ||
+      // The API actor identifies who initiated CI; triggering_actor may be a
+      // maintainer rerunning that same original bot-initiated run.
+      run.actor?.login !== BOT || run.actor.id !== 49699333 ||
       !/^[a-f0-9]{40}$/.test(run.head_sha)) return skip('CI identity, result, attempt, or source does not match');
   if (run.pull_requests?.length !== 1) return skip('CI must identify exactly one pull request');
   const number = run.pull_requests[0].number;
@@ -70,18 +87,15 @@ async function approveAndMerge({ github, context, core }) {
   if (!validPR(pr)) return skip('PR identity or current head does not match the tested update');
 
   const { data: commit } = await github.rest.repos.getCommit({ ...repo, ref: run.head_sha });
-  if (commit.sha !== run.head_sha || commit.author?.login !== BOT ||
-      commit.author?.id !== 49699333 || commit.commit.author?.email !==
-        '49699333+dependabot[bot]@users.noreply.github.com' ||
-      !commit.commit.verification?.verified || commit.commit.verification.reason !== 'valid' ||
-      !eligibleMetadata(commit.commit.message)) return skip('head is not a verified eligible Dependabot commit');
+  if (commit.sha !== run.head_sha || !verifiedDependabotCommit(commit) ||
+      !eligibleMetadata(commit.commit.message)) return skip('head lacks trusted GitHub verification, Dependabot author identity, or eligible metadata');
 
   // Revalidate after the reads. Mutations are bound to the tested SHA; never
   // enable an unbound auto-merge request that can survive a head change.
   ({ data: pr } = await github.rest.pulls.get({ ...repo, pull_number: number }));
   if (!validPR(pr)) return skip('PR changed during verification');
   await github.rest.pulls.createReview({ ...repo, pull_number: number, commit_id: run.head_sha,
-    event: 'APPROVE', body: 'Verified signed Dependabot patch/minor update and successful CI for this exact head.' });
+    event: 'APPROVE', body: 'GitHub-verified signature with trusted GitHub committer and Dependabot author identity; eligible patch/minor metadata and successful Dependabot-initiated CI for this exact head.' });
   try {
     const { data: result } = await github.rest.pulls.merge({ ...repo, pull_number: number,
       sha: run.head_sha, merge_method: 'squash' });
@@ -94,4 +108,4 @@ async function approveAndMerge({ github, context, core }) {
   }
 }
 
-module.exports = { eligibleMetadata, approveAndMerge };
+module.exports = { eligibleMetadata, verifiedDependabotCommit, approveAndMerge };
