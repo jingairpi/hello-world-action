@@ -2,15 +2,11 @@
   "name": "hello-world-action",
   "version": "1.12.0",
   "private": true,
-  "main": "index.js",
   "scripts": {
     "build": "ncc build index.js -o dist",
     "test": "node --test tests/*.test.cjs .github/scripts/*.test.cjs"
   },
-  "keywords": [],
-  "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
     "@actions/core": "^3.0.1"
   },
