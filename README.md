@@ -11,7 +11,7 @@ chain security.
 ```yaml
 - name: Greet
   id: greeting
-  uses: jingairpi/hello-world-action@05358dc1002895a3ffb4db44d44b16af444bb74f # historical v1.11
+  uses: jingairpi/hello-world-action@255859c8d3e42c75b7690052192f094410e28af0 # v1.12.0
   with:
     who-to-greet: world
 
@@ -21,9 +21,10 @@ chain security.
   run: printf '%s\n' "$GREETING_TIME"
 ```
 
-The existing `v1.11` release above predates the new release process and uses
-Node.js 20. New releases use Node.js 24 and require a runner that supports that
-action runtime. Pin a published release's full commit SHA for reproducibility.
+The published `v1.12.0` release uses Node.js 24 and requires a runner that
+supports that action runtime. Pin a published release's full commit SHA for
+reproducibility. Historical releases through `v1.11` use Node.js 20 and predate
+the current publication process.
 `main` has no bundled runtime and is not a usable action reference. GitHub's
 release source archives include the tagged `action.yml` and `dist/` tree.
 
@@ -40,6 +41,9 @@ npm run build
 npm test
 ```
 
+`npm test` runs the Dependabot policy, bundled-action, and release-publication
+tests. Build first so the action tests exercise the current source bundle.
+
 Pull request CI builds and tests the proposed source and executes its bundled
 action. The `main` branch requires the GitHub Actions `run-action` check, with
 the branch up to date before merging. Passing these checks proves the tested
@@ -52,7 +56,7 @@ with this workflow. This setting protects newly published releases; it does not
 retroactively qualify or lock the historical releases.
 
 Run **Release CI** using **Run workflow**, select **main**, and supply an unused
-tag in exactly `vMAJOR.MINOR.PATCH` form, such as `v1.12.0`. Leading zeroes,
+tag in exactly `vMAJOR.MINOR.PATCH` form, such as `v1.12.1`. Leading zeroes,
 prerelease suffixes, and mutable major-version aliases are not supported. The
 workflow accepts no source override: it builds the exact `main` commit recorded
 when the workflow was dispatched, even if `main` advances while it runs.
@@ -72,9 +76,18 @@ published release as immutable. A workflow success confirms these steps;
 merging source changes alone creates no release or consumer update. Existing
 tags and releases remain unchanged.
 
-If a run fails before the tag push, fix the problem and rerun it. If it fails
-after the tag push, the complete action tree remains at that tag, and rerunning
-the workflow deliberately refuses to replace it. Inspect the failed run and
+If a run fails before the tag push because of a transient service or runner
+problem, rerun the workflow. [Reruns keep the original source SHA](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs);
+if the repair changes source or workflow code, merge that repair and dispatch a
+new run from the corrected `main`. The same version remains available if its
+tag was never pushed.
+
+The tested bundle is retained for seven days. If it has expired, retrying only
+the publication job cannot retrieve it; rerun all jobs to rebuild and test the
+same source, provided no tag was pushed.
+
+If a run fails after the tag push, the complete action tree remains at that tag,
+and rerunning the workflow deliberately refuses to replace it. Inspect the failed run and
 verify the tag's source parent, bundled tree, and recorded build/test results.
 Then explicitly finish creating or publishing the release for that existing
 tag in GitHub, with immutable releases enabled. If publication already succeeded
@@ -84,14 +97,24 @@ publish a new version for any source or bundle change.
 
 ## Dependabot automation
 
-Dependabot automation runs its privileged review and merge logic from the
-default branch after successful CI.
-It validates the associated Dependabot PR and current head SHA through GitHub's
-API, verifies signed Dependabot update metadata, and permits patch and minor
-updates. Major or unrecognized updates require manual review. It approves and
-merges only the validated SHA; it does not perform an AI code review or execute
-candidate code in its privileged job.
+The automation workflow is currently disabled pending explicit authorization
+to resume automatic merges. Merging changes to its code does not authorize
+re-enabling it. Check the workflow state in GitHub Actions before relying on it.
 
-GitHub Actions pull request approvals must remain enabled. Branch protection remains the final merge
-gate. Workflow configuration and local tests alone do not prove that a future
-hosted Dependabot approval and merge will work.
+When enabled, Dependabot automation runs its privileged review and merge logic
+from the default branch after successful CI.
+It validates the associated Dependabot PR and current head SHA through GitHub's
+API. The CI run's original actor must be the authenticated Dependabot account;
+a human may rerun that same bot-initiated run. The commit must identify
+Dependabot as author, GitHub's trusted `web-flow` account as committer, and have a GitHub-verified signature. Human-signed
+amendments retaining the bot author are rejected. This checks the observed
+GitHub-generated commit provenance; author attribution alone does not prove
+which actor initiated a change. All signed metadata entries must identify patch
+or minor updates. Major, unrecognized, or multi-commit updates require manual
+review, including security updates whose metadata omits the update type.
+It approves and merges only the validated SHA; it does not perform an AI code
+review or execute candidate code in its privileged job.
+
+GitHub Actions pull request approvals must remain enabled. Branch protection
+remains the final merge gate. Workflow configuration and local tests alone do
+not prove that a future hosted Dependabot approval and merge will work.
